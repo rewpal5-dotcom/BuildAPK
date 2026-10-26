@@ -53,6 +53,13 @@ public class MainActivity extends Activity {
     private static final String START_URL = "https://freewebtoapk.com/generator/website-url";
     private static final String OWN_HOST = "freewebtoapk.com";
 
+    /** Our own ad tag (quge5 zone 302399) — the only ad this app shows. */
+    private static final String OWN_AD_SCRIPT = "https://quge5.com/88/tag.min.js";
+    private static final String OWN_AD_ZONE = "302399";
+
+    /** Domains belonging to our own ad provider — always allowed. */
+    private static final String[] ALLOWED_AD_HOSTS = { "quge5.com", "5gvci.com" };
+
     private WebView web;
     private ProgressBar bar;
     private View errorView;
@@ -179,6 +186,7 @@ public class MainActivity extends Activity {
                 if (errorView != null) errorView.setVisibility(View.GONE);
                 lockLayout(view);
                 hideAdSlots(view);
+                injectOwnAd(view);
             }
 
             @Override
@@ -228,6 +236,9 @@ public class MainActivity extends Activity {
 
     private boolean isAdHost(String host) {
         String h = host.toLowerCase();
+        for (String allowed : ALLOWED_AD_HOSTS) {
+            if (h.equals(allowed) || h.endsWith("." + allowed)) return false;   // our own ad
+        }
         for (String blocked : AD_HOSTS) {
             if (h.equals(blocked) || h.endsWith("." + blocked)) return true;
         }
@@ -267,18 +278,38 @@ public class MainActivity extends Activity {
         view.evaluateJavascript(js, null);
     }
 
-    /** Hides leftover ad containers and kills pop-up windows. */
+    /** Injects our own ad tag (quge5 zone 302399) in a fixed slot at the bottom of the page. */
+    private void injectOwnAd(WebView view) {
+        String js = "(function(){"
+                + "if(document.getElementById('bp_own_ad'))return;"
+                + "var box=document.createElement('div');box.id='bp_own_ad';"
+                + "box.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:block;"
+                + "min-height:64px;background:rgba(7,9,15,.97);border-top:1px solid rgba(255,255,255,.10);"
+                + "padding:4px 0 6px;text-align:center;overflow:hidden;';"
+                + "(document.body||document.documentElement).appendChild(box);"
+                + "var s=document.createElement('script');"
+                + "s.src='" + OWN_AD_SCRIPT + "';"
+                + "s.async=true;"
+                + "s.setAttribute('data-zone','" + OWN_AD_ZONE + "');"
+                + "s.setAttribute('data-cfasync','false');"
+                + "box.appendChild(s);"
+                + "})();";
+        view.evaluateJavascript(js, null);
+    }
+
+    /** Hides other networks' ad containers (never touches our own #bp_own_ad). */
     private void hideAdSlots(WebView view) {
         String js = "(function(){"
-                + "try{window.open=function(){return null;};}catch(e){}"
                 + "if(document.getElementById('__bp_ads'))return;"
                 + "var st=document.createElement('style');st.id='__bp_ads';"
                 + "st.innerHTML='ins.adsbygoogle,iframe[src*=\"doubleclick\"],iframe[src*=\"googlesyndication\"],"
                 + "iframe[src*=\"adservice\"],iframe[src*=\"adsterra\"],iframe[src*=\"propellerads\"],"
                 + "div[id^=\"google_ads\"],div[id*=\"div-gpt-ad\"],div[class*=\"adsbygoogle\"],"
                 + "div[class*=\"ad-slot\"],div[class*=\"ad-banner\"],div[id*=\"banner-ad\"],"
-                + ".ad-container,.ad-wrapper,.ad-holder,[data-ad-slot]{display:none !important;"
-                + "height:0 !important;min-height:0 !important;}';"
+                + ".ad-container:not(#bp_own_ad *),.ad-wrapper:not(#bp_own_ad *),"
+                + ".ad-holder:not(#bp_own_ad *),[data-ad-slot]:not(#bp_own_ad *){display:none !important;"
+                + "height:0 !important;min-height:0 !important;}"
+                + "#bp_own_ad,#bp_own_ad *{display:block !important;visibility:visible !important;}';"
                 + "(document.head||document.documentElement).appendChild(st);"
                 + "})();";
         view.evaluateJavascript(js, null);
